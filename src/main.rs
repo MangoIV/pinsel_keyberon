@@ -7,13 +7,16 @@ use panic_halt as _;
 use core::convert::Infallible;
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 use generic_array::typenum::{U4, U5};
-use atsamd_hal as hal;
+use xiao_m0 as hal;
 use hal::gpio::{v2,Floating, Input, Output, PullUp, PushPull};
 use hal::gpio::v2::Pin;
 use hal::prelude::*;
 use hal::sercom;
 use hal::clock;
+use hal::timer;
+use hal::hal::samd21::usb;
 use nb::block;
+use rtic::app;
 
 //keyberon imports
 use keyberon::action::{k, l, m, Action, Action::*};
@@ -28,7 +31,8 @@ use usb_device::bus::UsbBusAllocator;
 use usb_device::class::UsbClass as _;
 use usb_device::device::UsbDeviceState;
 
-//type UsbClass = keyberon::Class<'static, upe>;
+type UsbClass = keyberon::Class<'static, usb::UsbBus, ()>;
+type UsbDevice = usb_device::device::UsbDevice<'static, usb::UsbBus>;
 
 trait ResultExt<T>{
     fn get(self) -> T;
@@ -50,7 +54,6 @@ pub struct Cols(
     Pin<v2::PA11,Input<PullUp>>,
     Pin<v2::PA09,Input<PullUp>>,
 );
-//this here doesn't work
 impl_heterogenous_array! {
     Cols,
     dyn InputPin<Error = Infallible>,
@@ -128,3 +131,34 @@ pub static LAYERS: keyberon::layout::Layers = &[
         &[Trans,    Trans,  Trans,  k(LAlt),  k(Space), Trans,  Trans,  Trans,  Trans,  Trans,  Trans    ],
     ],
 ];
+
+#[app(device = crate::hal::pac, peripherals = true)]
+const APP: () = {
+    struct Resources{
+        usb_dev: UsbDevice,
+        usb_class: UsbClass,
+        matrix: Matrix<Cols, Rows>,
+        debouncer: Debouncer<PressedKeys<U4,U5>>,
+        layout: Layout,
+        timer: timer::TimerCounter3,
+        transform: fn(Event) -> Event,
+    }
+
+    #[init]
+    fn init(mut c: init::Context) -> init::LateResources {
+        static mut USB_BUS: Option<UsbBusAllocator<usb::UsbBus>> = None;
+
+        let mut pins = hal::Pins::new(c.device.PORT);
+
+
+        init::LateResources {
+            usb_dev,
+            usb_class,
+            timer,
+            debouncer: Debouncer::new(PressedKeys::default(), PressedKeys::default(),5),
+            matrix: matrix.get(),
+            layout: Layout::new(LAYERS),
+            transform,
+        }
+    }
+};
