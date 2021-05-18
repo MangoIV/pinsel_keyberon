@@ -4,24 +4,15 @@
 //panic handler
 use panic_halt as _;
 
-//einfach ein datentyp, der immer Ok ist
 use core::convert::Infallible;
-//Fallible Input/output pins
 use embedded_hal::digital::v2::{InputPin, OutputPin};
-//generischer Array Datentyp
 use generic_array::typenum::{U4, U5};
-// imported xiao hal
-use xiao_m0 as hal;
-// imports the gpio ports and the porper structs
+use atsamd_hal as hal;
 use hal::gpio::{v2,Floating, Input, Output, PullUp, PushPull};
 use hal::gpio::v2::Pin;
-// gives access to "helper traits" ... whatever in the world that is
 use hal::prelude::*;
-// gives access to sercoms
 use hal::sercom;
-//access to system clock resources
 use hal::clock;
-//non blocking binary crate
 use nb::block;
 
 //keyberon imports
@@ -59,10 +50,11 @@ pub struct Cols(
     Pin<v2::PA11,Input<PullUp>>,
     Pin<v2::PA09,Input<PullUp>>,
 );
+//this here doesn't work
 // impl_heterogenous_array! {
 //     Cols,
 //     dyn InputPin<Error = Infallible>,
-//     U6,
+//     U5,
 //     [0, 1, 2, 3, 4]
 // }
 
@@ -79,7 +71,7 @@ impl_heterogenous_array! {
     [0, 1, 2, 3]
 }
 
-const SF_Z: Action = HoldTap{
-    timeout: 200,
-    hold: &k()
-}
+// const SF_Z: Action = HoldTap{
+//     timeout: 200,
+//     hold: &k()
+// }
