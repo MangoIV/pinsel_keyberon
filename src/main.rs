@@ -122,9 +122,9 @@ pub static LAYERS: keyberon::layout::Layers = &[
         &[k(LShift), k(No),   k(Mute),    k(No),     k(No),   k(Home), k(End),  k(PgUp), k(PgDown), k(RShift)],
         &[Trans,    Trans,   Trans,      k(LAlt),   k(Space), Trans,   k(No),   Trans,   Trans,     Trans],
     ], &[
-        &[k(Escape),   k(F1), k(F2),  k(F3),  k(F4)],
-        &[k(CapsLock), k(F5), k(F6),  k(F7),  k(F8)],
-        &[k(LShift),   k(F9), k(F10), k(F11), k(F12)],
+        &[k(Escape),   k(F1), k(F2),  k(F3),  k(F4), k(No), k(No), k(No), k(Minus), k(Equal)],
+        &[k(CapsLock), k(F5), k(F6),  k(F7),  k(F8), k(LBracket), k(RBracket), k(No), k(Grave), k(Bslash)],
+        &[k(LShift),   k(F9), k(F10), k(F11), k(F12),k(No), k(No), k(No), k(No), k(RShift)],
         &[Trans,    Trans,  Trans,  k(LAlt),  k(SPACE), Trans,  Trans,  Trans,  Trans,  Trans,  Trans    ],
     ],
 ];
