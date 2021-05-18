@@ -36,7 +36,7 @@ opt-level = "z"
 debug = true
 
 [features]
-default = ["rt", "atsamd-hal/samd21g"]
+default = ["rt", "atsamd-hal/samd21g","unproven"]
 rt = ["cortex-m-rt", "atsamd-hal/samd21g-rt"]
 unproven = ["atsamd-hal/unproven"]
 #usb = ["atsamd-hal/usb", "usb-device"]
