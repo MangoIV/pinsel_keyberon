@@ -14,7 +14,8 @@ use hal::prelude::*;
 use hal::sercom;
 use hal::clock;
 use hal::timer;
-use hal::hal::samd21::usb;
+use hal::usb;
+use hal::usb::UsbBus;
 use nb::block;
 use rtic::app;
 
@@ -27,12 +28,15 @@ use keyberon::key_code::KeyCode::*;
 use keyberon::layout::{Event, Layout};
 use keyberon::matrix::{Matrix, PressedKeys};
 
+use usb_device;
 use usb_device::bus::UsbBusAllocator;
+use usb_device::prelude::*;
 use usb_device::class::UsbClass as _;
 use usb_device::device::UsbDeviceState;
 
 type UsbClass = keyberon::Class<'static, usb::UsbBus, ()>;
 type UsbDevice = usb_device::device::UsbDevice<'static, usb::UsbBus>;
+static mut USB_ALLOCATOR: Option<UsbBusAllocator<UsbBus>> = None;
 
 trait ResultExt<T>{
     fn get(self) -> T;
@@ -149,7 +153,22 @@ const APP: () = {
         static mut USB_BUS: Option<UsbBusAllocator<usb::UsbBus>> = None;
 
         let mut pins = hal::Pins::new(c.device.PORT);
-
+        let mut clocks = clock::GenericClockController::with_internal_32kosc(
+            c.device.GCLK,
+            &mut c.device.PM,
+            &mut c.device.SYSCTRL,
+            &mut c.device.NVMCTRL,
+        );
+        let bus_allocator = unsafe {
+            USB_ALLOCATOR = Some(hal::usb_allocator(
+                c.device.USB,
+                &mut clocks,
+                &mut c.device.PM,
+                pins.usb_dm,
+                pins.usb_dp,
+            ));
+            USB_ALLOCATOR.as_ref().unwrap()
+        };
 
         init::LateResources {
             usb_dev,
