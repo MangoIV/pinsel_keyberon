@@ -13,6 +13,7 @@ use hal::gpio::v2::Pin;
 use hal::prelude::*;
 use hal::sercom;
 use hal::clock;
+use hal::clock::GenericClockController;
 use hal::timer;
 use hal::usb;
 use hal::usb::UsbBus;
@@ -36,7 +37,6 @@ use usb_device::device::UsbDeviceState;
 
 type UsbClass = keyberon::Class<'static, usb::UsbBus, ()>;
 type UsbDevice = usb_device::device::UsbDevice<'static, usb::UsbBus>;
-static mut USB_ALLOCATOR: Option<UsbBusAllocator<UsbBus>> = None;
 
 trait ResultExt<T>{
     fn get(self) -> T;
@@ -149,26 +149,33 @@ const APP: () = {
     }
 
     #[init]
-    fn init(mut c: init::Context) -> init::LateResources {
-        static mut USB_BUS: Option<UsbBusAllocator<usb::UsbBus>> = None;
+    fn init(mut cx: init::Context) -> init::LateResources {
+        static mut USB_ALLOCATOR: Option<UsbBusAllocator<UsbBus>> = None;
 
-        let mut pins = hal::Pins::new(c.device.PORT);
-        let mut clocks = clock::GenericClockController::with_internal_32kosc(
-            c.device.GCLK,
-            &mut c.device.PM,
-            &mut c.device.SYSCTRL,
-            &mut c.device.NVMCTRL,
+        let mut peripherals = cx.device;
+        let mut clocks = GenericClockController::with_internal_32kosc(
+            peripherals.GCLK,
+            &mut peripherals.PM,
+            &mut peripherals.SYSCTRL,
+            &mut peripherals.NVMCTRL,
         );
-        let bus_allocator = unsafe {
-            USB_ALLOCATOR = Some(hal::usb_allocator(
-                c.device.USB,
-                &mut clocks,
-                &mut c.device.PM,
-                pins.usb_dm,
-                pins.usb_dp,
-            ));
-            USB_ALLOCATOR.as_ref().unwrap()
-        };
+
+        let pins = hal::Pins::new(peripherals.PORT);
+        *USB_ALLOCATOR = Some(hal::usb_allocator(
+            peripherals.USB,
+            &mut clocks,
+            &mut peripherals.PM,
+            pins.usb_dm.into(),
+            pins.usb_dp.into(),
+            &mut pins.port,
+        ));
+
+        let usb_bus = USB_ALLOCATOR.as_ref().unwrap();
+
+        let usb_class = keyberon::new_class(usb_bus, ());
+        let usb_dev = keyberon::new_device(usb_bus);
+
+
 
         init::LateResources {
             usb_dev,

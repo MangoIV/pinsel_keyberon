@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-xiao_m0 = "0.9.0"
+xiao_m0 = "0.9"
 cortex-m = "0.6.2"
 panic-halt = "0.2"
 keyberon = "0.1.0"
@@ -19,7 +19,7 @@ usb-device = "0.2.0"
 
 [dependencies.atsamd-hal]
 version ="0.12"
-default-features = false
+default-features = true
 
 [dependencies.cortex-m-rt]
 version = "0.6.12"
@@ -32,7 +32,4 @@ opt-level = "z"
 debug = true
 
 [features]
-default = ["rt", "atsamd-hal/samd21g","unproven", "usb"]
-rt = ["cortex-m-rt", "atsamd-hal/samd21g-rt"]
-unproven = ["atsamd-hal/unproven"]
-usb = ["atsamd-hal/usb"]
+default = ["xiao_m0/rt", "xiao_m0/cortex-m-rt", "xiao_m0/usb", "xiao_m0/unproven", "xiao_m0/usb-device"]
