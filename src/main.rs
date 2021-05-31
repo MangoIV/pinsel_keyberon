@@ -8,12 +8,10 @@ use core::convert::Infallible;
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 use generic_array::typenum::{U4, U5};
 use xiao_m0 as hal;
-use hal::gpio::v1;
 use hal::gpio::v2;
 use hal::gpio::v2::{Pin, Pins, Floating, Input, Output, PullUp, PushPull};
 use hal::prelude::*;
-use hal::sercom;
-use hal::clock;
+use hal::sercom::{I2CMaster2, Sercom2Pad0, Sercom2Pad1};
 use hal::clock::GenericClockController;
 use hal::timer;
 use hal::usb;
@@ -147,6 +145,7 @@ const APP: () = {
         layout: Layout,
         timer: timer::TimerCounter3,
         transform: fn(Event) -> Event,
+        i2c:I2CMaster2<v2::Pin<v2::PA08, Input<PullUp>>,v2::Pin<v2::PA09, Input<PullUp>>>,
     }
 
     #[init]
@@ -194,15 +193,13 @@ const APP: () = {
             |e| e.transform(|i, j| (i, 9-j))
         };
 
-
-
-         let i2c = hal::sercom::I2CMaster2::new(
+         let i2c = I2CMaster2::new(
              &clocks.sercom2_core(&gclk0).unwrap(),
              100.khz(),
              peripherals.SERCOM2,
              &mut peripherals.PM,
-             gpio_pins.pa08,
-             gpio_pins.pa09,
+             gpio_pins.pa08.into_pull_up_input(),
+             gpio_pins.pa09.into_pull_up_input(),
          );
 
         let matrix =
@@ -230,6 +227,84 @@ const APP: () = {
             matrix: matrix.get(),
             layout: Layout::new(LAYERS),
             transform,
+            i2c,
         }
     }
+
+    #[task(binds = SERCOM2, priority = 5, spawn = [handle_event], resources = [i2c])]
+    fn i2c(c: i2c::Context){
+        static mut BUF:[u8;4] = [0;4];
+
+        if let Ok(b) = c.resources.i2c.read(0x1E ,BUF){
+            BUF.rotate_left(1);
+            BUF[3] = b;
+        }
+    }
+
+    #[task(binds = USB, priority = 4, resources = [usb_dev, usb_class])]
+    fn usb_rx(c: usb_rx::Context) {
+        if c.resources.usb_dev.poll(&mut [c.resources.usb_class]) {
+            c.resources.usb_class.poll();
+        }
+    }
+
+    #[task(priority = 3, capacity = 8, resources = [usb_dev, usb_class, layout])]
+    fn handle_event(mut c: handle_event::Context, event: Option<Event>) {
+        let report: KbHidReport = match event {
+            None => c.resources.layout.tick().collect(),
+            Some(e) => c.resources.layout.event(e).collect(),
+        };
+        if !c
+            .resources
+            .usb_class
+            .lock(|k| k.device_mut().set_keyboard_report(report.clone()))
+        {
+            return;
+        }
+        if c.resources.usb_dev.lock(|d| d.state()) != UsbDeviceState::Configured {
+            return;
+        }
+        while let Ok(0) = c.resources.usb_class.lock(|k| k.write(report.as_bytes())) {}
+    }
+
+    #[task(
+        binds = RTC,
+        priority = 2,
+        spawn = [handle_event],
+        resources = [matrix, debouncer, timer, &transform, i2c],
+    )]
+    fn tick(c: tick::Context) {
+        c.resources.timer.wait().ok();
+
+        for event in c
+            .resources
+            .debouncer
+            .events(c.resources.matrix.get().get())
+            .map(c.resources.transform)
+        {
+            for &b in &ser(event) {
+                block!(c.resources.i2c.write(b)).get();
+            }
+            c.spawn.handle_event(Some(event)).unwrap();
+        }
+        c.spawn.handle_event(None).unwrap();
+    }
+
+    extern "C" {
+        fn CEC_CAN();
+    }
 };
+
+fn de(bytes: &[u8]) -> Result<Event, ()> {
+    match *bytes {
+        [b'P', i, j, b'\n'] => Ok(Event::Press(i, j)),
+        [b'R', i, j, b'\n'] => Ok(Event::Release(i, j)),
+        _ => Err(()),
+    }
+}
+fn ser(e: Event) -> [u8; 4] {
+    match e {
+        Event::Press(i, j) => [b'P', i, j, b'\n'],
+        Event::Release(i, j) => [b'R', i, j, b'\n'],
+    }
+}
