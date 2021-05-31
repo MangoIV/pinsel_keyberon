@@ -8,8 +8,9 @@ use core::convert::Infallible;
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 use generic_array::typenum::{U4, U5};
 use xiao_m0 as hal;
-use hal::gpio::{v2,Floating, Input, Output, PullUp, PushPull};
-use hal::gpio::Pin;
+use hal::gpio::v1;
+use hal::gpio::v2;
+use hal::gpio::v2::{Pin, Pins, Floating, Input, Output, PullUp, PushPull};
 use hal::prelude::*;
 use hal::sercom;
 use hal::clock;
@@ -160,17 +161,18 @@ const APP: () = {
             &mut peripherals.NVMCTRL,
         );
 
-        let pins = hal::Pins::new(peripherals.PORT);
+        let gpio_pins = v2::Pins::new(peripherals.PORT);
+
         *USB_ALLOCATOR = Some(hal::usb_allocator(
             peripherals.USB,
             &mut clocks,
             &mut peripherals.PM,
-            pins.usb_dm.into(),
-            pins.usb_dp.into(),
-            &mut pins.port,
+            gpio_pins.pa24,
+            gpio_pins.pa25,
         ));
 
         let usb_bus = USB_ALLOCATOR.as_ref().unwrap();
+
 
         let usb_class = keyberon::new_class(usb_bus, ());
         let usb_dev = keyberon::new_device(usb_bus);
@@ -193,32 +195,32 @@ const APP: () = {
         };
 
 
-        let i2c = hal::sercom::I2CMaster2::new(
-            &clocks.sercom2_core(&gclk0).unwrap(),
-            100.khz(),
-            peripherals.SERCOM2,
-            &mut peripherals.PM,
-            pins.a8,
-            pins.a9,
-        );
 
-        let matrix = move |cs|{
+         let i2c = hal::sercom::I2CMaster2::new(
+             &clocks.sercom2_core(&gclk0).unwrap(),
+             100.khz(),
+             peripherals.SERCOM2,
+             &mut peripherals.PM,
+             gpio_pins.pa08,
+             gpio_pins.pa09,
+         );
+
+        let matrix =
             Matrix::new(
                 Cols(
-                    pins.a0.into_pull_up_input(cs),
-                    pins.a1.into_pull_up_input(cs),
-                    pins.a2.into_pull_up_input(cs),
-                    pins.a3.into_pull_up_input(cs),
-                    pins.a7.into_pull_up_input(cs),
+                    gpio_pins.pa02.into_pull_up_input(),
+                    gpio_pins.pa04.into_pull_up_input(),
+                    gpio_pins.pa10.into_pull_up_input(),
+                    gpio_pins.pa11.into_pull_up_input(),
+                    gpio_pins.pb09.into_pull_up_input(),
                 ),
                 Rows(
-                    pins.a10.into_push_pull_output(cs),
-                    pins.a9.into_push_pull_output(cs),
-                    pins.a8.into_push_pull_output(cs),
-                    pins.a7.into_push_pull_output(cs),
+                    gpio_pins.pa06.into_push_pull_output(),
+                    gpio_pins.pa05.into_push_pull_output(),
+                    gpio_pins.pa07.into_push_pull_output(),
+                    gpio_pins.pb08.into_push_pull_output(),
                 ),
-            )
-        };
+            );
 
         init::LateResources {
             usb_dev,
