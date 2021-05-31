@@ -33,3 +33,4 @@ debug = true
 
 [features]
 default = ["xiao_m0/rt", "xiao_m0/cortex-m-rt", "xiao_m0/usb", "xiao_m0/unproven", "xiao_m0/usb-device"]
+is_left = []

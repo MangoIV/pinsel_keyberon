@@ -9,7 +9,7 @@ use embedded_hal::digital::v2::{InputPin, OutputPin};
 use generic_array::typenum::{U4, U5};
 use xiao_m0 as hal;
 use hal::gpio::{v2,Floating, Input, Output, PullUp, PushPull};
-use hal::gpio::v2::Pin;
+use hal::gpio::Pin;
 use hal::prelude::*;
 use hal::sercom;
 use hal::clock;
@@ -56,7 +56,7 @@ pub struct Cols(
     Pin<v2::PA04,Input<PullUp>>,
     Pin<v2::PA10,Input<PullUp>>,
     Pin<v2::PA11,Input<PullUp>>,
-    Pin<v2::PA09,Input<PullUp>>,
+    Pin<v2::PB09,Input<PullUp>>,
 );
 impl_heterogenous_array! {
     Cols,
@@ -69,7 +69,7 @@ pub struct Rows(
     Pin<v2::PA06,Output<PushPull>>,
     Pin<v2::PA05,Output<PushPull>>,
     Pin<v2::PA07,Output<PushPull>>,
-    Pin<v2::PA08,Output<PushPull>>,
+    Pin<v2::PB08,Output<PushPull>>,
 );
 impl_heterogenous_array! {
     Rows,
@@ -175,7 +175,50 @@ const APP: () = {
         let usb_class = keyberon::new_class(usb_bus, ());
         let usb_dev = keyberon::new_device(usb_bus);
 
+        let gclk0 = clocks.gclk0();
+        let tc23 = &clocks.tcc2_tc3(&gclk0).unwrap();
+        let mut timer =timer::TimerCounter::tc3_(
+            tc23,
+            peripherals.TC3,
+            &mut peripherals.PM,
+        );
 
+        // determines whether the left half is to be used at compile time
+        // by checking whether the corresponding feature is enabled
+        let is_left = cfg!(feature = "is_left");
+        let transform: fn(Event) -> Event = if is_left{
+            |e| e
+        } else {
+            |e| e.transform(|i, j| (i, 9-j))
+        };
+
+
+        let i2c = hal::sercom::I2CMaster2::new(
+            &clocks.sercom2_core(&gclk0).unwrap(),
+            100.khz(),
+            peripherals.SERCOM2,
+            &mut peripherals.PM,
+            pins.a8,
+            pins.a9,
+        );
+
+        let matrix = move |cs|{
+            Matrix::new(
+                Cols(
+                    pins.a0.into_pull_up_input(cs),
+                    pins.a1.into_pull_up_input(cs),
+                    pins.a2.into_pull_up_input(cs),
+                    pins.a3.into_pull_up_input(cs),
+                    pins.a7.into_pull_up_input(cs),
+                ),
+                Rows(
+                    pins.a10.into_push_pull_output(cs),
+                    pins.a9.into_push_pull_output(cs),
+                    pins.a8.into_push_pull_output(cs),
+                    pins.a7.into_push_pull_output(cs),
+                ),
+            )
+        };
 
         init::LateResources {
             usb_dev,
